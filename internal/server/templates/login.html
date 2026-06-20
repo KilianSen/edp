@@ -1,0 +1,25 @@
+{{define "title"}}Sign in{{end}}
+{{define "content"}}
+<div class="mx-auto mt-16 max-w-sm">
+  <div class="card relative overflow-hidden p-7" style="animation: edp-rise .4s ease both">
+    <div class="rail" data-state="running"></div>
+    <p class="eyebrow">{{if .FirstRun}}First run{{else}}Control console{{end}}</p>
+    <h1 class="mt-1.5 font-display text-2xl font-semibold tracking-tight">
+      {{if .FirstRun}}Set an admin password{{else}}Sign in to edp{{end}}
+    </h1>
+    <p class="mt-1.5 text-sm text-dim">
+      {{if .FirstRun}}Choose a password to lock the dashboard — at least 8 characters.{{else}}One password guards the dashboard and API.{{end}}
+    </p>
+
+    {{if .Error}}<p class="mt-4 rounded-lg border border-fail/30 bg-fail-soft px-3 py-2 text-sm text-fail">{{.Error}}</p>{{end}}
+
+    <form method="post" action="/login" class="mt-5 space-y-4">
+      <label class="lbl">Password
+        <input type="password" name="password" autofocus required minlength="8" class="field" placeholder="••••••••">
+      </label>
+      <button type="submit" class="btn btn-primary w-full">{{if .FirstRun}}Set password &amp; continue{{else}}Sign in{{end}}</button>
+    </form>
+  </div>
+  <p class="mt-4 text-center font-mono text-[11px] text-faint">edp · self-hosted test-environment deployer</p>
+</div>
+{{end}}

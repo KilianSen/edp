@@ -1,0 +1,174 @@
+{{define "title"}}{{if .Editing}}Edit{{else}}New{{end}} environment{{end}}
+{{define "content"}}
+{{$e := .Env}}
+<div class="mb-6">
+  <a href="{{if .Editing}}/env/{{$e.ID}}{{else}}/{{end}}" class="font-mono text-xs text-faint hover:text-dim">&larr; back</a>
+  <h1 class="mt-2 font-display text-2xl font-semibold tracking-tight">{{if .Editing}}Edit “{{$e.Name}}”{{else}}New environment{{end}}</h1>
+  {{if not .Editing}}<p class="mt-1 text-sm text-dim">Pick a starting point, name it, point it at your code — that’s the whole setup. Everything else has sensible defaults.</p>{{end}}
+</div>
+
+<form method="post" action="{{if .Editing}}/api/environments/{{$e.ID}}{{else}}/api/environments{{end}}" class="space-y-5">
+
+  {{if not .Editing}}
+  <div>
+    <p class="eyebrow mb-2">Start from</p>
+    <div class="flex flex-col gap-3 sm:flex-row" id="presets">
+      <button type="button" class="preset" data-preset="git" {{if and (eq $e.SourceType "git") (eq $e.DeployType "container")}}data-active="1"{{end}}>
+        <h3>Git repo</h3><p>Clone &amp; build from a Dockerfile</p>
+      </button>
+      <button type="button" class="preset" data-preset="image" {{if and (eq $e.SourceType "registry") (eq $e.DeployType "container")}}data-active="1"{{end}}>
+        <h3>Container image</h3><p>Pull a prebuilt image from a registry</p>
+      </button>
+      <button type="button" class="preset" data-preset="compose" {{if eq $e.DeployType "compose"}}data-active="1"{{end}}>
+        <h3>Compose stack</h3><p>Bring up a docker-compose.yml from a repo</p>
+      </button>
+    </div>
+  </div>
+  {{end}}
+
+  <!-- selects drive the show/hide logic; presets set them for you -->
+  <select name="source_type" id="source_type" class="hidden">
+    <option value="git" {{if eq $e.SourceType "git"}}selected{{end}}>git</option>
+    <option value="registry" {{if eq $e.SourceType "registry"}}selected{{end}}>registry</option>
+  </select>
+  <select name="deploy_type" id="deploy_type" class="hidden">
+    <option value="container" {{if eq $e.DeployType "container"}}selected{{end}}>container</option>
+    <option value="compose" {{if eq $e.DeployType "compose"}}selected{{end}}>compose</option>
+  </select>
+
+  <section class="card p-5">
+    <p class="eyebrow">Essentials</p>
+    <div class="mt-4 space-y-4">
+      <label class="lbl">Name <input name="name" value="{{$e.Name}}" required class="field" placeholder="checkout-staging" autofocus></label>
+
+      <div data-when-source="git">
+        <label class="lbl">Repository URL <input name="repo_url" value="{{$e.RepoURL}}" class="field" placeholder="https://github.com/org/repo.git"></label>
+        <label class="lbl mt-4">Branch / tag / commit <span class="text-faint">(blank = default branch)</span> <input name="git_ref" value="{{$e.GitRef}}" class="field" placeholder="main"></label>
+      </div>
+      <div data-when-source="registry">
+        <label class="lbl">Image <input name="registry_image" value="{{$e.RegistryImage}}" class="field" placeholder="ghcr.io/org/app:tag"></label>
+      </div>
+    </div>
+  </section>
+
+  <details class="adv" data-when-source="git">
+    <summary><span>Private repo &amp; build options</span><span class="chev">&rsaquo;</span></summary>
+    <div class="adv-body">
+      <label class="lbl">Access token <span class="text-faint">(only for private repos)</span> <input name="git_token" type="password" value="{{$e.GitToken}}" class="field"></label>
+      <div class="grid gap-4 sm:grid-cols-2" data-when-deploy="container">
+        <label class="lbl">Dockerfile path <input name="dockerfile_path" value="{{$e.DockerfilePath}}" class="field" placeholder="Dockerfile"></label>
+        <label class="lbl">Build context <input name="build_context" value="{{$e.BuildContext}}" class="field" placeholder="."></label>
+      </div>
+      <label class="lbl" data-when-deploy="container">Custom Dockerfile <span class="text-faint">(overrides the repo’s — leave blank to use it)</span>
+        <textarea name="dockerfile_content" rows="6" class="field font-mono text-[13px]" placeholder="FROM node:20-alpine&#10;WORKDIR /app&#10;COPY . .&#10;RUN npm ci&#10;CMD [&quot;npm&quot;,&quot;run&quot;,&quot;start:test&quot;]">{{$e.DockerfileContent}}</textarea></label>
+      <label class="lbl" data-when-deploy="compose">Compose file <span class="text-faint">(relative to repo)</span> <input name="compose_path" value="{{$e.ComposePath}}" class="field" placeholder="docker-compose.yml"></label>
+      <label class="lbl" data-when-deploy="compose">Compose override <span class="text-faint">(merged on top of the file above)</span>
+        <textarea name="compose_override" rows="6" class="field font-mono text-[13px]" placeholder="services:&#10;  app:&#10;    environment:&#10;      - APP_ENV=test&#10;    command: npm run start:test">{{$e.ComposeOverride}}</textarea></label>
+    </div>
+  </details>
+
+  <details class="adv" data-when-source="registry">
+    <summary><span>Registry credentials</span><span class="chev">&rsaquo;</span></summary>
+    <div class="adv-body grid gap-4 sm:grid-cols-2">
+      <label class="lbl">Username <input name="registry_username" value="{{$e.RegistryUsername}}" class="field"></label>
+      <label class="lbl">Password / token <input name="registry_password" type="password" value="{{$e.RegistryPassword}}" class="field"></label>
+    </div>
+  </details>
+
+  <details class="adv">
+    <summary><span>Environment variables</span><span class="chev">&rsaquo;</span></summary>
+    <div class="adv-body">
+      <label class="lbl">Variables <span class="text-faint">(KEY=VALUE per line)</span>
+        <textarea name="run_env" rows="4" class="field font-mono text-[13px]" placeholder="DATABASE_URL=postgres://db:5432/app&#10;LOG_LEVEL=debug&#10;FEATURE_X=on">{{$e.RunEnv}}</textarea></label>
+      <p class="text-xs text-dim">Set on the container (<code>-e</code>) for single-container envs. For compose stacks they’re passed to <code>docker compose</code> for <code>${VAR}</code> interpolation and <code>env_file</code>. Also available to setup/cleanup &amp; timed-hook scripts.</p>
+    </div>
+  </details>
+
+  <details class="adv" data-when-deploy="container">
+    <summary><span>Runtime — ports, volumes</span><span class="chev">&rsaquo;</span></summary>
+    <div class="adv-body">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="lbl">Ports <span class="text-faint">(host:container, comma-sep)</span> <input name="run_ports" value="{{$e.RunPorts}}" class="field" placeholder="8080:80"></label>
+        <label class="lbl">Networks <span class="text-faint">(comma-sep)</span> <input name="run_networks" value="{{$e.RunNetworks}}" class="field"></label>
+      </div>
+      <label class="lbl">Volumes <span class="text-faint">(name:/path per line)</span> <textarea name="run_volumes" rows="2" class="field font-mono">{{$e.RunVolumes}}</textarea></label>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="lbl">Image tag <span class="text-faint">(build target)</span> <input name="image_name" value="{{$e.ImageName}}" class="field" placeholder="auto"></label>
+        <label class="lbl">Restart policy
+          <select name="restart_policy" class="field">
+            {{range $p := list "unless-stopped" "always" "on-failure" "no"}}<option value="{{$p}}" {{if eq $e.RestartPolicy $p}}selected{{end}}>{{$p}}</option>{{end}}
+          </select>
+        </label>
+      </div>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="lbl">Entrypoint override <span class="text-faint">(blank = image default)</span> <input name="entrypoint" value="{{$e.Entrypoint}}" class="field font-mono" placeholder="/bin/sh"></label>
+        <label class="lbl">Command override <span class="text-faint">(args; quotes respected)</span> <input name="command" value="{{$e.Command}}" class="field font-mono" placeholder="-c &quot;npm run start:test&quot;"></label>
+      </div>
+      <label class="lbl">Entrypoint script <span class="text-faint">(runs as the container’s entrypoint via the interpreter above, default <code>/bin/sh</code>; overrides command)</span>
+        <textarea name="entrypoint_script" rows="6" class="field font-mono text-[13px]" placeholder="#!/bin/sh&#10;echo waiting for db...&#10;until nc -z db 5432; do sleep 1; done&#10;npm run migrate&#10;exec npm run start:test">{{$e.EntrypointScript}}</textarea></label>
+    </div>
+  </details>
+
+  <details class="adv">
+    <summary><span>Lifecycle — schedule, hooks, volume sweep</span><span class="chev">&rsaquo;</span></summary>
+    <div class="adv-body">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="lbl">Redeploy schedule <span class="text-faint">(cron or duration; blank = off)</span> <input name="redeploy_schedule" value="{{$e.RedeploySchedule}}" class="field" placeholder="30m · 0 */6 * * *"></label>
+        <label class="lbl">Volume sweep
+          <select name="volume_sweep" class="field">
+            {{range $sw := list "none" "named" "all"}}<option value="{{$sw}}" {{if eq $e.VolumeSweep $sw}}selected{{end}}>{{$sw}}</option>{{end}}
+          </select>
+        </label>
+      </div>
+      <label class="lbl">Setup script — Python, before deploy <textarea name="setup_script" rows="3" class="field font-mono" placeholder="import os&#10;print('preparing', os.environ['EDP_ENV_NAME'])">{{$e.SetupScript}}</textarea></label>
+      <label class="lbl">Cleanup script — Python, after deploy <textarea name="cleanup_script" rows="2" class="field font-mono">{{$e.CleanupScript}}</textarea></label>
+      <label class="flex items-center gap-2.5 text-sm text-dim"><input type="checkbox" name="auto_deploy" {{if $e.AutoDeploy}}checked{{end}} class="h-4 w-4 rounded border-line bg-ink text-go focus:ring-go/40"> Auto-deploy when created / imported / loaded on startup</label>
+      <label class="flex items-center gap-2.5 text-sm text-dim"><input type="checkbox" name="prune_images" {{if $e.PruneImages}}checked{{end}} class="h-4 w-4 rounded border-line bg-ink text-go focus:ring-go/40"> Prune dangling images after deploy</label>
+    </div>
+  </details>
+
+  <details class="adv">
+    <summary><span>Health check</span><span class="chev">&rsaquo;</span></summary>
+    <div class="adv-body">
+      <p class="text-xs text-dim">edp waits for this to pass after deploy — it defines “ready” and times the start for the ETA.</p>
+      <div class="grid gap-4 sm:grid-cols-[180px_1fr]">
+        <label class="lbl">Type
+          <select name="health_type" class="field">
+            {{range $t := list "none" "http" "exec"}}<option value="{{$t}}" {{if eq $e.HealthType $t}}selected{{end}}>{{$t}}</option>{{end}}
+          </select>
+        </label>
+        <label class="lbl">Target <span class="text-faint">(URL for http · command for exec)</span> <input name="health_target" value="{{$e.HealthTarget}}" class="field font-mono" placeholder="http://edp-&lt;name&gt;:8080/health"></label>
+      </div>
+    </div>
+  </details>
+
+  <details class="adv">
+    <summary><span>Access &amp; proxy</span><span class="chev">&rsaquo;</span></summary>
+    <div class="adv-body">
+      <p class="text-xs text-dim">Reach this env through edp at <code>/e/{{if $e.Name}}{{$e.Name}}{{else}}&lt;name&gt;{{end}}/</code>, by hostname, or a raw TCP port. Leave the container port blank to keep it off.</p>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="lbl">Proxy host <span class="text-faint">(HTTP, optional)</span> <input name="proxy_host" value="{{$e.ProxyHost}}" class="field" placeholder="app.test.local"></label>
+        <label class="lbl">Container port <span class="text-faint">(target)</span> <input name="proxy_port" value="{{$e.ProxyPort}}" class="field font-mono" placeholder="80"></label>
+      </div>
+      <label class="lbl">TCP port-forward <span class="text-faint">(host listen port, optional)</span> <input name="listen_port" value="{{$e.ListenPort}}" class="field font-mono" placeholder="9001"></label>
+
+      <div class="border-t border-line-soft pt-4">
+        <p class="lbl">Clear browser data on redeploy <span class="text-faint">(HTTP proxy only)</span></p>
+        <p class="mt-0.5 text-xs text-dim">After a redeploy, the next visit through edp tells the browser to wipe the selected data for a clean test.</p>
+        <div class="mt-2.5 flex flex-wrap gap-x-5 gap-y-2 text-sm text-dim">
+          {{$csd := $e.ClearSiteData}}
+          <label class="flex items-center gap-2"><input type="checkbox" name="clear_site_data" value="cookies" {{if contains $csd "cookies"}}checked{{end}} class="h-4 w-4 rounded border-line bg-ink text-go focus:ring-go/40"> Cookies</label>
+          <label class="flex items-center gap-2"><input type="checkbox" name="clear_site_data" value="storage" {{if contains $csd "storage"}}checked{{end}} class="h-4 w-4 rounded border-line bg-ink text-go focus:ring-go/40"> localStorage / IndexedDB</label>
+          <label class="flex items-center gap-2"><input type="checkbox" name="clear_site_data" value="cache" {{if contains $csd "cache"}}checked{{end}} class="h-4 w-4 rounded border-line bg-ink text-go focus:ring-go/40"> Cache</label>
+          <label class="flex items-center gap-2"><input type="checkbox" name="clear_site_data" value="executionContexts" {{if contains $csd "executionContexts"}}checked{{end}} class="h-4 w-4 rounded border-line bg-ink text-go focus:ring-go/40"> Force reload</label>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <div class="flex items-center gap-3 pb-4">
+    <button type="submit" class="btn btn-primary">{{if .Editing}}Save changes{{else}}Create environment{{end}}</button>
+    <a class="btn btn-ghost" href="{{if .Editing}}/env/{{$e.ID}}{{else}}/{{end}}">Cancel</a>
+  </div>
+</form>
+{{end}}

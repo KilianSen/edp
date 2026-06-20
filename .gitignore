@@ -1,0 +1,10 @@
+/edp
+/edp.exe
+*.db
+*.db-shm
+*.db-wal
+/_*
+/.tailwind
+/data
+/workspace
+.idea/

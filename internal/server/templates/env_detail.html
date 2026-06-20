@@ -1,0 +1,127 @@
+{{define "title"}}{{.View.Name}}{{end}}
+{{define "content"}}
+{{$v := .View}}
+<div class="mb-6">
+  <a href="/" class="font-mono text-xs text-faint hover:text-dim">&larr; environments</a>
+  <div class="mt-2 flex flex-wrap items-start justify-between gap-4" data-state="{{$v.ContainerState}}" {{if $v.Deploying}}data-deploying="1"{{end}}>
+    <div>
+      <h1 class="flex items-center gap-2.5 font-display text-2xl font-semibold tracking-tight">
+        <span class="dot"></span>{{$v.Name}}
+      </h1>
+      <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <span class="pill bg-raised text-dim">{{$v.SourceType}}</span>
+        <span class="pill bg-raised text-dim">{{$v.DeployType}}</span>
+        <span class="pill bg-raised text-dim capitalize">{{if eq $v.ContainerState "none"}}not running{{else}}{{$v.ContainerState}} {{$v.ContainerInfo}}{{end}}</span>
+        {{if $v.EstimateMs}}<span class="pill bg-raised text-dim">~{{durMs $v.EstimateMs}} start</span>{{end}}
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <form method="post" action="/api/environments/{{$v.ID}}/deploy" hx-post="/api/environments/{{$v.ID}}/deploy" hx-swap="none"
+            hx-on::after-request="setTimeout(function(){location.reload()},700)" class="flex items-center gap-2">
+        <input name="reason" class="field !mt-0 w-44" placeholder="reason (optional)">
+        <button class="btn btn-primary">Redeploy</button>
+      </form>
+      <a class="btn" href="/env/{{$v.ID}}/edit">Edit</a>
+      <a class="btn" href="/api/environments/{{$v.ID}}/export" title="Download this environment as JSON">Export</a>
+    </div>
+  </div>
+</div>
+
+{{if $v.Deploying}}{{if $v.Last.StartedAt}}
+<div class="card mb-5 p-4" data-progress data-start="{{$v.Last.StartedAt.UnixMilli}}" data-eta="{{$v.EstimateMs}}">
+  <div class="progress-track"><div class="progress-fill" data-fill><span class="sheen"></span></div></div>
+  <p class="mt-2 font-mono text-xs text-work" data-eta-text>Deploying…</p>
+</div>
+{{end}}{{end}}
+
+<section class="card mb-5 p-5">
+  <p class="eyebrow">Access</p>
+  <div class="mt-3 space-y-3 text-sm">
+    {{if $v.ProxyPort}}
+    <div>
+      <p class="stat-label mb-1">HTTP reverse proxy</p>
+      <code class="block break-all rounded-md border border-line bg-ink px-3 py-2 font-mono text-xs">{{.BaseURL}}/e/{{$v.Name}}/</code>
+      {{if $v.ProxyHost}}<code class="mt-1.5 block break-all rounded-md border border-line bg-ink px-3 py-2 font-mono text-xs">http://{{$v.ProxyHost}}/ <span class="text-faint">(point this host at edp)</span></code>{{end}}
+    </div>
+    {{end}}
+    {{if $v.ListenPort}}
+    <div>
+      <p class="stat-label mb-1">TCP port-forward</p>
+      <code class="block rounded-md border border-line bg-ink px-3 py-2 font-mono text-xs">{{.Host}} → :{{$v.ListenPort}} → container :{{$v.ProxyPort}}</code>
+    </div>
+    {{end}}
+    <div>
+      <p class="stat-label mb-1">Webhook <span class="text-faint normal-case tracking-normal">— POST to redeploy from CI/git</span></p>
+      <code class="block break-all rounded-md border border-line bg-ink px-3 py-2 font-mono text-xs">{{.WebhookURL}}</code>
+      <form method="post" action="/api/environments/{{$v.ID}}/rotate-token" class="mt-2 inline"><button class="btn btn-sm btn-ghost">Rotate token</button></form>
+    </div>
+  </div>
+</section>
+
+<div class="grid gap-5 lg:grid-cols-2">
+  <section class="card p-5">
+    <p class="eyebrow">Deployments</p>
+    <ul class="mt-3 divide-y divide-line-soft">
+      {{range .Deployments}}
+      <li class="flex items-center justify-between gap-3 py-2.5">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="badge badge-{{.Status}}">{{.Status}}</span>
+            <span class="font-mono text-xs text-faint">{{.Trigger}}</span>
+            {{if .DurationMs}}<span class="font-mono text-xs text-faint">{{durMs .DurationMs}}</span>{{end}}
+          </div>
+          {{if .Reason}}<p class="mt-1 truncate text-xs text-dim">{{.Reason}}</p>{{end}}
+        </div>
+        <div class="shrink-0 text-right">
+          <a class="font-mono text-xs text-go hover:underline" href="/env/{{$v.ID}}?deploy={{.ID}}">log</a>
+          <p class="mt-0.5 font-mono text-[11px] text-faint">{{if .StartedAt}}{{.StartedAt.Format "Jan 02 15:04"}}{{end}}</p>
+        </div>
+      </li>
+      {{else}}
+      <li class="py-3 text-sm text-dim">No deployments yet.</li>
+      {{end}}
+    </ul>
+  </section>
+
+  <section class="card flex flex-col p-5">
+    <div class="flex items-center gap-2">
+      <p class="eyebrow">Log</p>
+      {{if .Focus}}<span class="badge badge-{{.Focus.Status}}" id="log-status">{{.Focus.Status}}</span>{{end}}
+    </div>
+    {{if .Focus}}
+      <pre id="log" data-stream="/api/deployments/{{.Focus.ID}}/logs/stream"
+           class="mt-3 h-80 grow overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-[#05070c] p-3 font-mono text-[12.5px] leading-relaxed"></pre>
+    {{else}}
+      <p class="mt-3 text-sm text-dim">Trigger a deploy to stream its output here.</p>
+    {{end}}
+  </section>
+</div>
+
+<section class="card mt-5 p-5">
+  <div class="flex items-center justify-between">
+    <div>
+      <p class="eyebrow">Timed hooks</p>
+      <p class="mt-1 text-xs text-dim">Scheduled Python scripts that run against this env <span class="text-fg">without</span> redeploying it.</p>
+    </div>
+    <a class="btn btn-sm" href="/env/{{$v.ID}}/hooks/new">Add hook</a>
+  </div>
+  <ul class="mt-3 divide-y divide-line-soft">
+    {{range .Hooks}}
+    <li class="flex items-center justify-between gap-3 py-2.5">
+      <div class="min-w-0">
+        <a href="/timed-hooks/{{.ID}}" class="font-medium hover:text-go">{{.Name}}</a>
+        {{if not .Enabled}}<span class="pill bg-raised text-faint">off</span>{{end}}
+        <p class="mt-0.5 font-mono text-xs text-faint">{{if .Schedule}}every {{.Schedule}}{{else}}manual{{end}}</p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        {{if .Last}}<span class="badge badge-{{.Last.Status}}">{{.Last.Status}}</span>{{else}}<span class="font-mono text-xs text-faint">never run</span>{{end}}
+        <button class="btn btn-sm" hx-post="/api/hooks/{{.ID}}/run" hx-swap="none" hx-on::after-request="setTimeout(function(){location.reload()},500)">Run now</button>
+        <a class="btn btn-sm btn-ghost" href="/timed-hooks/{{.ID}}/edit">Edit</a>
+      </div>
+    </li>
+    {{else}}
+    <li class="py-3 text-sm text-dim">No timed hooks. <a class="text-go hover:underline" href="/env/{{$v.ID}}/hooks/new">Add one</a>.</li>
+    {{end}}
+  </ul>
+</section>
+{{end}}

@@ -1,0 +1,32 @@
+{{define "title"}}{{if .Editing}}Edit hook{{else}}New hook{{end}}{{end}}
+{{define "content"}}
+{{$h := .Hook}}
+<div class="mb-6">
+  <a href="{{if .Editing}}/timed-hooks/{{$h.ID}}{{else}}/env/{{$h.EnvID}}{{end}}" class="font-mono text-xs text-faint hover:text-dim">&larr; back</a>
+  <h1 class="mt-2 font-display text-2xl font-semibold tracking-tight">{{if .Editing}}Edit timed hook{{else}}New timed hook{{end}}
+    <span class="font-sans text-base font-normal text-faint">· {{.EnvName}}</span></h1>
+</div>
+
+<p class="mb-5 max-w-2xl text-sm text-dim">
+  A timed hook runs a Python script on a schedule <span class="text-fg">without redeploying</span> the environment.
+  Your script gets <code>EDP_ENV_NAME</code>, <code>EDP_CONTAINER</code> (the running container — use
+  <code>docker exec</code>), <code>EDP_COMPOSE_PROJECT</code>, and <code>EDP_REPO_DIR</code> in its environment.
+</p>
+
+<form method="post" action="{{if .Editing}}/api/hooks/{{$h.ID}}{{else}}/api/environments/{{$h.EnvID}}/hooks{{end}}" class="space-y-5">
+  <section class="card p-5 space-y-4">
+    <label class="lbl">Name <input name="name" value="{{$h.Name}}" required class="field" placeholder="nightly-db-cleanup"></label>
+    <div class="grid items-end gap-4 sm:grid-cols-[1fr_auto]">
+      <label class="lbl">Schedule <span class="text-faint">(cron or duration; blank = manual only)</span> <input name="schedule" value="{{$h.Schedule}}" class="field" placeholder="15m · 0 3 * * *"></label>
+      <label class="flex h-10 items-center gap-2.5 text-sm text-dim"><input type="checkbox" name="enabled" {{if $h.Enabled}}checked{{end}} class="h-4 w-4 rounded border-line bg-ink text-go focus:ring-go/40"> Enabled</label>
+    </div>
+    <label class="lbl">Python script
+      <textarea name="script" rows="10" class="field font-mono text-[13px]" placeholder="import subprocess, os&#10;subprocess.run(['docker','exec',os.environ['EDP_CONTAINER'],'sh','-c','echo maintenance'], check=True)">{{$h.Script}}</textarea>
+    </label>
+  </section>
+  <div class="flex items-center gap-3">
+    <button type="submit" class="btn btn-primary">{{if .Editing}}Save changes{{else}}Create hook{{end}}</button>
+    <a class="btn btn-ghost" href="{{if .Editing}}/timed-hooks/{{$h.ID}}{{else}}/env/{{$h.EnvID}}{{end}}">Cancel</a>
+  </div>
+</form>
+{{end}}

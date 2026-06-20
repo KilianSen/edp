@@ -1,0 +1,10 @@
+.git
+_smoke
+_ui
+.tailwind
+*.exe
+*.db
+*.db-*
+edp
+/data
+/workspace

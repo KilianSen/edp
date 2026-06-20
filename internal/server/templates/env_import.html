@@ -1,0 +1,36 @@
+{{define "title"}}Import environments{{end}}
+{{define "content"}}
+<div class="mb-6">
+  <a href="/" class="font-mono text-xs text-faint hover:text-dim">&larr; environments</a>
+  <h1 class="mt-2 font-display text-2xl font-semibold tracking-tight">Import environments</h1>
+  <p class="mt-1 text-sm text-dim">Paste an exported bundle, or pick a <code>.json</code> file. Each environment is created with a fresh name if one already exists.</p>
+</div>
+
+{{if .Error}}<p class="mb-4 rounded-lg border border-fail/30 bg-fail-soft px-3 py-2 text-sm text-fail">{{.Error}}</p>{{end}}
+
+<form method="post" action="/api/import" class="space-y-4">
+  <section class="card p-5 space-y-4">
+    <label class="lbl">JSON file
+      <input type="file" accept="application/json,.json" id="import-file" class="field file:mr-3 file:rounded-md file:border-0 file:bg-raised file:px-3 file:py-1 file:text-fg">
+    </label>
+    <label class="lbl">…or paste the bundle
+      <textarea name="json" id="import-json" rows="14" required class="field font-mono text-[13px]" placeholder='{"version":1,"environments":[ ... ]}'>{{.JSON}}</textarea>
+    </label>
+    <p class="text-xs text-dim">Exports never contain credentials, but if your JSON includes <code>git_token</code> / <code>registry_password</code> they’ll be imported and encrypted at rest.</p>
+  </section>
+  <div class="flex items-center gap-3">
+    <button type="submit" class="btn btn-primary">Import</button>
+    <a class="btn btn-ghost" href="/">Cancel</a>
+  </div>
+</form>
+
+<script>
+  // load a chosen file into the textarea
+  document.getElementById("import-file").addEventListener("change", function (e) {
+    var f = e.target.files[0]; if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () { document.getElementById("import-json").value = rd.result; };
+    rd.readAsText(f);
+  });
+</script>
+{{end}}

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "environments": [
+    {
+      "name": "hello-edp",
+      "source_type": "registry",
+      "deploy_type": "container",
+      "registry_image": "nginx:alpine",
+      "restart_policy": "unless-stopped",
+      "auto_deploy": true,
+      "run_env": "DEMO_MESSAGE=hello from edp",
+      "proxy_port": "80",
+      "health_type": "exec",
+      "health_target": "wget -q -O /dev/null http://localhost/",
+      "clear_site_data": "cookies,storage",
+      "timed_hooks": [
+        {
+          "name": "smoke-test",
+          "schedule": "",
+          "enabled": true,
+          "script": "import os, subprocess\nc = os.environ['EDP_CONTAINER']\nprint('hitting', c, 'on :80')\nsubprocess.run(['docker', 'exec', c, 'wget', '-q', '-O', '-', 'http://localhost/'], check=True)\nprint('smoke test ok')"
+        }
+      ]
+    }
+  ]
+}

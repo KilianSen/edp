@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="3">
+<title>{{.Name}} — {{if .Deploying}}deploying{{else}}starting{{end}}…</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    background: #0a0e16; color: #e7ebf4;
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .card {
+    position: relative; width: min(440px, 92vw); padding: 36px 34px; text-align: center;
+    background: #131826; border: 1px solid #262e42; border-radius: 14px; overflow: hidden;
+  }
+  .card::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px;
+    background: #f5b544; }
+  .spinner {
+    width: 44px; height: 44px; margin: 0 auto 22px; border-radius: 50%;
+    border: 3px solid #262e42; border-top-color: #2dd4bf; animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h1 { font-size: 20px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .name { color: #2dd4bf; }
+  p { color: #8595b6; margin: 6px 0 0; }
+  .bar { margin-top: 22px; height: 8px; background: #0a0e16; border: 1px solid #262e42; border-radius: 99px; overflow: hidden; }
+  .fill { height: 100%; width: 0; background: linear-gradient(90deg, #b9802a, #f5b544); transition: width .4s ease; }
+  .eta { margin-top: 10px; color: #f5b544; font-variant-numeric: tabular-nums; font-size: 13px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <h1>{{if .Deploying}}Deploying{{else}}Starting{{end}} <span class="name">{{.Name}}</span>…</h1>
+    <p>{{if .Deploying}}A new version is rolling out.{{else}}This environment isn’t running yet.{{end}} This page will refresh automatically.</p>
+    <div class="bar"><div class="fill" id="fill"></div></div>
+    <div class="eta" id="eta"></div>
+  </div>
+  <script>
+    var eta = {{.EtaMs}}, elapsed = {{.ElapsedMs}}, start = Date.now() - elapsed;
+    var fill = document.getElementById("fill"), etaEl = document.getElementById("eta");
+    function tick() {
+      var e = Date.now() - start;
+      if (eta > 0) {
+        var pct = Math.min(95, Math.round(e / eta * 100));
+        fill.style.width = pct + "%";
+        var left = Math.max(0, Math.round((eta - e) / 1000));
+        etaEl.textContent = {{if .Deploying}}"~" + left + "s remaining (last deploy took ~" + Math.round(eta/1000) + "s)"{{else}}""{{end}};
+      } else {
+        fill.style.width = "40%";
+        etaEl.textContent = "";
+      }
+    }
+    tick(); setInterval(tick, 500);
+  </script>
+</body>
+</html>
