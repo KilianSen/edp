@@ -1,0 +1,15 @@
+# edp-manager instance registry — declarative seed.
+#
+# Mount this file into the container and point EDPM_CONFIG at it
+# (e.g. EDPM_CONFIG=/config/instances.yml). It is applied on boot and is
+# idempotent: instances whose `label` already exists are left untouched, so you
+# can keep it mounted for infra-as-code while still adding/removing instances at
+# runtime via the UI/API.
+instances:
+  - label: prod
+    base_url: https://edp-prod.internal
+    token_env: EDP_PROD_TOKEN # preferred: read the API token from this env var
+
+  - label: staging
+    base_url: https://edp-staging.internal
+    token: "paste-edp-api-token-here" # or inline (discouraged — prefer token_env)

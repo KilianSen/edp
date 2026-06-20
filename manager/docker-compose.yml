@@ -1,0 +1,18 @@
+services:
+  edp-manager:
+    build: .
+    image: edp-manager:latest
+    ports:
+      - "9090:9090"
+    environment:
+      # Set to seed/recover the manager admin password (authoritative on boot).
+      EDPM_ADMIN_PASSWORD: ${EDPM_ADMIN_PASSWORD:-}
+      # Uncomment to seed instances declaratively from a mounted file:
+      # EDPM_CONFIG: /config/instances.yml
+    volumes:
+      - edp-manager-data:/data
+      # - ./instances.yml:/config/instances.yml:ro
+    restart: unless-stopped
+
+volumes:
+  edp-manager-data:

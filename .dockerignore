@@ -1,10 +1,29 @@
+# Build context for the edp images is the monorepo ROOT (the service is in ./edp,
+# the dashboard in ./ui). Keep edp/ and ui/ in context; drop everything else.
 .git
-_smoke
-_ui
-.tailwind
-*.exe
-*.db
-*.db-*
-edp
-/data
-/workspace
+.github
+.run
+_art3
+_art4
+*.md
+
+# sibling subprojects aren't part of the edp image build
+manager
+splash
+
+# node deps / build output — the ui stage installs + builds fresh
+ui/node_modules
+ui/dist
+ui/*.tsbuildinfo
+
+# local run artifacts under the service
+edp/.run
+edp/data
+edp/workspace
+edp/examples
+
+# binaries / databases anywhere
+**/*.exe
+**/*.db
+**/*.db-shm
+**/*.db-wal

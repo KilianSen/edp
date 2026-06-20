@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1
+# Bundled-UI edp image: the edp binary PLUS the prebuilt dashboard (./ui), which
+# edp serves at "/" (EDP_UI_DIR). Same binary as the headless image — only the
+# assets + env var differ. Built from the MONOREPO ROOT as context (the service
+# is in ./edp, the dashboard in ./ui):
+#   docker build -f edp/Dockerfile.ui -t edp:ui .
+
+# ---- ui build: compile the React SPA (in ./ui) to static files ----
+FROM --platform=$BUILDPLATFORM node:22-alpine AS ui
+WORKDIR /ui
+COPY ui/package.json ui/package-lock.json* ./
+RUN npm ci
+COPY ui/ ./
+RUN npm run build
+
+# ---- edp build: static, CGO-free binary ----
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+WORKDIR /src
+COPY edp/go.mod edp/go.sum ./
+RUN go mod download
+COPY edp/ ./
+ARG TARGETOS TARGETARCH
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -trimpath -ldflags="-s -w" -o /edp ./cmd/edp
+
+# ---- runtime ----
+FROM alpine:3.20
+RUN apk add --no-cache docker-cli docker-cli-compose git python3 ca-certificates tzdata
+COPY --from=build /edp /usr/local/bin/edp
+COPY --from=ui /ui/dist /usr/share/edp-ui
+
+ENV EDP_ADDR=:8080 \
+    EDP_DATA_DIR=/data \
+    EDP_WORKSPACE_DIR=/workspace \
+    EDP_UI_DIR=/usr/share/edp-ui
+VOLUME ["/data", "/workspace"]
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/edp"]

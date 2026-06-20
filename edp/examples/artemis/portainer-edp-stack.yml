@@ -1,0 +1,63 @@
+# Deploy EDP via Portainer; edp BUILDS the single self-updating Artemis runtime
+# from an inline Dockerfile (no repo, no hosted Artemis image) and runs + fronts it.
+#
+#   NPM (host network)  ──►  127.0.0.1:8800 (edp)  ──►  Artemis runtime container
+#   (TLS + hostname)          (router + dashboard)       (8080, on edp's private net)
+#
+# The whole Artemis environment — including the self-contained Dockerfile (entrypoint
+# + MySQL config embedded as base64) — travels in the `artemis-bundle` config below.
+# edp imports it on first boot, builds the image, runs ONE container; that container
+# clones + builds Artemis at runtime and self-updates the branch.
+#
+# EDIT: EDP_ADMIN_PASSWORD and the edp image tag. Everything else is set for
+# feature/math/scaffold on artemis-1.cloud.kiliansen.de.
+configs:
+  artemis-bundle:
+    content: |
+      {
+        "version": 1,
+        "environments": [
+          {
+            "name": "artemis-scaffold",
+            "source_type": "dockerfile",
+            "deploy_type": "container",
+            "repo_url": "",
+            "git_ref": "",
+            "dockerfile_path": "",
+            "build_context": "",
+            "image_name": "edp/artemis-aio:latest",
+            "restart_policy": "unless-stopped",
+            "auto_deploy": true,
+            "run_env": "ARTEMIS_REPO_URL=https://github.com/KilianSen/Artemis.git\nARTEMIS_BRANCH=feature/math/scaffold\nARTEMIS_PROFILES=artemis,scheduling,core,dev\nPULL_INTERVAL_SECONDS=3600",
+            "run_volumes": "artemis-src:/opt/artemis-src\nartemis-mysql:/var/lib/mysql",
+            "proxy_host": "artemis-1.cloud.kiliansen.de",
+            "proxy_port": "8080",
+            "listen_port": "5005",
+            "clear_site_data": "cookies,storage",
+            "health_type": "none",
+            "dockerfile_content": "FROM eclipse-temurin:25-jdk\nENV DEBIAN_FRONTEND=noninteractive LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8\nENV ARTEMIS_REPO_URL=https://github.com/KilianSen/Artemis.git ARTEMIS_BRANCH=feature/math/scaffold ARTEMIS_PROFILES=artemis,scheduling,core,dev\nRUN set -eux; apt-get update; apt-get install -y --no-install-recommends git curl ca-certificates gnupg graphviz mysql-server mysql-client locales; sed -i 's/^# *en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen; locale-gen\nRUN echo 'IyBNeVNRTCBzZXR0aW5ncyBmb3IgdGhlIGFsbC1pbi1vbmUgQXJ0ZW1pcyB0ZXN0aW5nIGltYWdlLgojIE1pcnJvcnMgdGhlIGZsYWdzIHVzZWQgYnkgZG9ja2VyL215c3FsLnltbC4gbG93ZXJfY2FzZV90YWJsZV9uYW1lcyBNVVNUIGJlIHNldAojIGJlZm9yZSB0aGUgZGF0YSBkaXJlY3RvcnkgaXMgaW5pdGlhbGl6ZWQgYW5kIGNhbiBuZXZlciBiZSBjaGFuZ2VkIGFmdGVyd2FyZHMuCltteXNxbGRdCmxvd2VyX2Nhc2VfdGFibGVfbmFtZXM9MQpjaGFyYWN0ZXJfc2V0X3NlcnZlcj11dGY4bWI0CmNvbGxhdGlvbi1zZXJ2ZXI9dXRmOG1iNF91bmljb2RlX2NpCmV4cGxpY2l0X2RlZmF1bHRzX2Zvcl90aW1lc3RhbXA9MQptYXhfY29ubmVjdGlvbnM9MTAwMDAKYmluZC1hZGRyZXNzPTEyNy4wLjAuMQo=' | base64 -d > /etc/mysql/mysql.conf.d/zz-artemis.cnf\nRUN echo 'IyEvdXNyL2Jpbi9lbnYgYmFzaAojCiMgRW50cnlwb2ludCBmb3IgdGhlIGFsbC1pbi1vbmUsIHNlbGYtdXBkYXRpbmcgQXJ0ZW1pcyB0ZXN0aW5nIGNvbnRhaW5lci4KIwojIFJlc3BvbnNpYmlsaXRpZXMgKGFsbCBpbnNpZGUgT05FIGNvbnRhaW5lciwgZm9yZWdyb3VuZCBzdXBlcnZpc29yIOKAlCBubyBjcm9uKToKIyAgIDEuIEJyaW5nIHVwIGEgbmF0aXZlIE15U1FMIHNlcnZlciAoaW5pdCBkYXRhIGRpciBvbiBmaXJzdCBydW4pLgojICAgMi4gQ2xvbmUgdGhlIGNvbmZpZ3VyZWQgcmVwby9icmFuY2ggb24gZmlyc3QgcnVuLgojICAgMy4gQnVpbGQgKyBydW4gQXJ0ZW1pcyB2aWEgYC4vZ3JhZGxldyBib290UnVuYCAoYWxzbyBidWlsZHMvc2VydmVzIHRoZSBjbGllbnQpLgojICAgNC4gRXZlcnkgUFVMTF9JTlRFUlZBTF9TRUNPTkRTOiBmZXRjaCB0aGUgYnJhbmNoOyBvbiBuZXcgY29tbWl0cywgc3RvcCB0aGUKIyAgICAgIHNlcnZlciwgTlVLRSB0aGUgZGF0YWJhc2UsIHVwZGF0ZSB0aGUgc291cmNlLCBhbmQgcmVzdGFydCAod2hpY2ggcmVidWlsZHMpLgojCnNldCAtZXVvIHBpcGVmYWlsCgojIC0tLSBDb25maWd1cmF0aW9uIChvdmVycmlkYWJsZSB2aWEgZW52IC8gZG9ja2VyL3NlbGZ1cGRhdGUvZGVmYXVsdC5lbnYpIC0tLS0tLS0tCkFSVEVNSVNfUkVQT19VUkw9IiR7QVJURU1JU19SRVBPX1VSTDotaHR0cHM6Ly9naXRodWIuY29tL2xzMWludHVtL0FydGVtaXMuZ2l0fSIKQVJURU1JU19CUkFOQ0g9IiR7QVJURU1JU19CUkFOQ0g6LWRldmVsb3B9IgojIFBsYWluIGRldiBwcm9maWxlczogc2VydmVyICsgY2xpZW50ICsgTXlTUUwgb24gbG9jYWxob3N0LCBubyBsb2NhbGNpL2J1aWxkYWdlbnQuCkFSVEVNSVNfUFJPRklMRVM9IiR7QVJURU1JU19QUk9GSUxFUzotYXJ0ZW1pcyxzY2hlZHVsaW5nLGNvcmUsZGV2fSIKUFVMTF9JTlRFUlZBTF9TRUNPTkRTPSIke1BVTExfSU5URVJWQUxfU0VDT05EUzotMzYwMH0iCgpXT1JLRElSPSIke0FSVEVNSVNfV09SS0RJUjotL29wdC9hcnRlbWlzLXNyY30iCkRCX05BTUU9IiR7QVJURU1JU19EQl9OQU1FOi1BcnRlbWlzfSIKTVlTUUxfREFUQURJUj0iL3Zhci9saWIvbXlzcWwiCgojIFNwcmluZyByZWFkcyBTUFJJTkdfUFJPRklMRVNfQUNUSVZFIGZyb20gdGhlIGVudmlyb25tZW50LgpleHBvcnQgU1BSSU5HX1BST0ZJTEVTX0FDVElWRT0iJEFSVEVNSVNfUFJPRklMRVMiCgpBUFBfUEdJRD0iIgpNWVNRTF9QSUQ9IiIKCmxvZygpIHsgZWNobyAiW2VudHJ5cG9pbnRdICQqIjsgfQoKIyAtLS0gTXlTUUwgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCnN0YXJ0X215c3FsKCkgewogICAgbWtkaXIgLXAgL3Zhci9ydW4vbXlzcWxkCiAgICBjaG93biAtUiBteXNxbDpteXNxbCAvdmFyL3J1bi9teXNxbGQgIiRNWVNRTF9EQVRBRElSIgoKICAgIGlmIFsgISAtZCAiJE1ZU1FMX0RBVEFESVIvbXlzcWwiIF07IHRoZW4KICAgICAgICBsb2cgIkluaXRpYWxpemluZyBNeVNRTCBkYXRhIGRpcmVjdG9yeSAoaW5zZWN1cmU6IGVtcHR5IHJvb3QgcGFzc3dvcmQpIgogICAgICAgIG15c3FsZCAtLWluaXRpYWxpemUtaW5zZWN1cmUgLS11c2VyPW15c3FsIC0tZGF0YWRpcj0iJE1ZU1FMX0RBVEFESVIiCiAgICBmaQoKICAgIGxvZyAiU3RhcnRpbmcgTXlTUUwiCiAgICBteXNxbGQgLS11c2VyPW15c3FsIC0tZGF0YWRpcj0iJE1ZU1FMX0RBVEFESVIiICYKICAgIE1ZU1FMX1BJRD0kIQoKICAgIGxvZyAiV2FpdGluZyBmb3IgTXlTUUwgdG8gYWNjZXB0IGNvbm5lY3Rpb25zIgogICAgZm9yIF8gaW4gJChzZXEgMSAxMjApOyBkbwogICAgICAgIGlmIG15c3FsYWRtaW4gLS1zaWxlbnQgcGluZyA+L2Rldi9udWxsIDI+JjE7IHRoZW4KICAgICAgICAgICAgYnJlYWsKICAgICAgICBmaQogICAgICAgIHNsZWVwIDEKICAgIGRvbmUKICAgIG15c3FsYWRtaW4gLS1zaWxlbnQgcGluZyA+L2Rldi9udWxsIDI+JjEgfHwgeyBsb2cgIk15U1FMIGRpZCBub3QgY29tZSB1cCI7IGV4aXQgMTsgfQoKICAgICMgVGhlIGRldiBwcm9maWxlIGNvbm5lY3RzIG92ZXIgVENQICgxMjcuMC4wLjEpIGFzIHJvb3Qgd2l0aCBhbiBlbXB0eSBwYXNzd29yZC4KICAgICMgaW5pdGlhbGl6ZS1pbnNlY3VyZSBvbmx5IGNyZWF0ZXMgcm9vdEBsb2NhbGhvc3QgKHNvY2tldCksIHNvIGV4cG9zZSByb290QCclJy4KICAgIGxvZyAiQ29uZmlndXJpbmcgcm9vdCBhY2Nlc3MgZm9yIFRDUCBjb25uZWN0aW9ucyIKICAgIG15c3FsIC0tcHJvdG9jb2w9c29ja2V0IC11cm9vdCA8PC1TUUwKICAgICAgICBDUkVBVEUgVVNFUiBJRiBOT1QgRVhJU1RTICdyb290J0AnJScgSURFTlRJRklFRCBCWSAnJzsKICAgICAgICBHUkFOVCBBTEwgUFJJVklMRUdFUyBPTiAqLiogVE8gJ3Jvb3QnQCclJyBXSVRIIEdSQU5UIE9QVElPTjsKICAgICAgICBDUkVBVEUgREFUQUJBU0UgSUYgTk9UIEVYSVNUUyBcYCR7REJfTkFNRX1cYCBDSEFSQUNURVIgU0VUIHV0ZjhtYjQgQ09MTEFURSB1dGY4bWI0X3VuaWNvZGVfY2k7CiAgICAgICAgRkxVU0ggUFJJVklMRUdFUzsKU1FMCn0KCm51a2VfZGIoKSB7CiAgICBsb2cgIk51a2luZyBkYXRhYmFzZSAnJHtEQl9OQU1FfSciCiAgICBteXNxbCAtLXByb3RvY29sPXNvY2tldCAtdXJvb3QgPDwtU1FMCiAgICAgICAgRFJPUCBEQVRBQkFTRSBJRiBFWElTVFMgXGAke0RCX05BTUV9XGA7CiAgICAgICAgQ1JFQVRFIERBVEFCQVNFIFxgJHtEQl9OQU1FfVxgIENIQVJBQ1RFUiBTRVQgdXRmOG1iNCBDT0xMQVRFIHV0ZjhtYjRfdW5pY29kZV9jaTsKU1FMCn0KCiMgLS0tIFNvdXJjZSAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQpjbG9uZV9pZl9uZWVkZWQoKSB7CiAgICBpZiBbICEgLWQgIiRXT1JLRElSLy5naXQiIF07IHRoZW4KICAgICAgICBsb2cgIkNsb25pbmcgJHtBUlRFTUlTX1JFUE9fVVJMfSAoYnJhbmNoICR7QVJURU1JU19CUkFOQ0h9KSBpbnRvICR7V09SS0RJUn0iCiAgICAgICAgcm0gLXJmICIke1dPUktESVI6P30vIiogMj4vZGV2L251bGwgfHwgdHJ1ZQogICAgICAgIGdpdCBjbG9uZSAtLWJyYW5jaCAiJEFSVEVNSVNfQlJBTkNIIiAiJEFSVEVNSVNfUkVQT19VUkwiICIkV09SS0RJUiIKICAgIGVsc2UKICAgICAgICBsb2cgIlJldXNpbmcgZXhpc3RpbmcgY2hlY2tvdXQgaW4gJHtXT1JLRElSfSIKICAgIGZpCiAgICBnaXQgY29uZmlnIC0tZ2xvYmFsIC0tYWRkIHNhZmUuZGlyZWN0b3J5ICIkV09SS0RJUiIKfQoKIyAtLS0gQXBwbGljYXRpb24gLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQpydW5fYXBwKCkgewogICAgbG9nICJTdGFydGluZyBBcnRlbWlzIChwcm9maWxlczogJHtTUFJJTkdfUFJPRklMRVNfQUNUSVZFfSkiCiAgICBzZXRzaWQgYmFzaCAtYyAiY2QgJyRXT1JLRElSJyAmJiBleGVjIC4vZ3JhZGxldyBib290UnVuIC0tY29uc29sZT1wbGFpbiIgJgogICAgQVBQX1BHSUQ9JCEKfQoKc3RvcF9hcHAoKSB7CiAgICBbIC16ICIkQVBQX1BHSUQiIF0gJiYgcmV0dXJuCiAgICBsb2cgIlN0b3BwaW5nIEFydGVtaXMgKHByb2Nlc3MgZ3JvdXAgJHtBUFBfUEdJRH0pIgogICAga2lsbCAtVEVSTSAtLSAiLSR7QVBQX1BHSUR9IiAyPi9kZXYvbnVsbCB8fCB0cnVlCiAgICBmb3IgXyBpbiAkKHNlcSAxIDkwKTsgZG8KICAgICAgICBraWxsIC0wIC0tICItJHtBUFBfUEdJRH0iIDI+L2Rldi9udWxsIHx8IHsgQVBQX1BHSUQ9IiI7IHJldHVybjsgfQogICAgICAgIHNsZWVwIDEKICAgIGRvbmUKICAgIGxvZyAiQXJ0ZW1pcyBkaWQgbm90IHN0b3AgZ3JhY2VmdWxseSwgZm9yY2luZyIKICAgIGtpbGwgLUtJTEwgLS0gIi0ke0FQUF9QR0lEfSIgMj4vZGV2L251bGwgfHwgdHJ1ZQogICAgQVBQX1BHSUQ9IiIKfQoKIyAtLS0gU2h1dGRvd24gLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQpzaHV0ZG93bigpIHsKICAgIGxvZyAiU2h1dHRpbmcgZG93biIKICAgIHN0b3BfYXBwCiAgICBbIC1uICIkTVlTUUxfUElEIiBdICYmIG15c3FsYWRtaW4gLS1wcm90b2NvbD1zb2NrZXQgLXVyb290IHNodXRkb3duIDI+L2Rldi9udWxsIHx8IHRydWUKICAgIGV4aXQgMAp9CnRyYXAgc2h1dGRvd24gVEVSTSBJTlQKCiMgLS0tIE1haW4gLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0Kc3RhcnRfbXlzcWwKY2xvbmVfaWZfbmVlZGVkCnJ1bl9hcHAKCmxvZyAiV2F0Y2hlciBhY3RpdmU6IGNoZWNraW5nICR7QVJURU1JU19CUkFOQ0h9IGV2ZXJ5ICR7UFVMTF9JTlRFUlZBTF9TRUNPTkRTfXMiCndoaWxlIHRydWU7IGRvCiAgICBzbGVlcCAiJFBVTExfSU5URVJWQUxfU0VDT05EUyIgJgogICAgd2FpdCAkISB8fCB0cnVlCgogICAgY2QgIiRXT1JLRElSIgogICAgaWYgISBnaXQgZmV0Y2ggLS1xdWlldCBvcmlnaW4gIiRBUlRFTUlTX0JSQU5DSCI7IHRoZW4KICAgICAgICBsb2cgImdpdCBmZXRjaCBmYWlsZWQsIHdpbGwgcmV0cnkgbmV4dCBpbnRlcnZhbCIKICAgICAgICBjb250aW51ZQogICAgZmkKICAgIGxvY2FsX3Jldj0iJChnaXQgcmV2LXBhcnNlIEhFQUQpIgogICAgcmVtb3RlX3Jldj0iJChnaXQgcmV2LXBhcnNlICJvcmlnaW4vJHtBUlRFTUlTX0JSQU5DSH0iKSIKCiAgICBpZiBbICIkbG9jYWxfcmV2IiAhPSAiJHJlbW90ZV9yZXYiIF07IHRoZW4KICAgICAgICBsb2cgIk5ldyBjaGFuZ2VzIGRldGVjdGVkICgke2xvY2FsX3JldjowOjd9IC0+ICR7cmVtb3RlX3JldjowOjd9KTsgcmVidWlsZGluZyIKICAgICAgICBzdG9wX2FwcAogICAgICAgIGdpdCByZXNldCAtLWhhcmQgIm9yaWdpbi8ke0FSVEVNSVNfQlJBTkNIfSIKICAgICAgICBudWtlX2RiCiAgICAgICAgcnVuX2FwcAogICAgZWxzZQogICAgICAgIGxvZyAiTm8gY2hhbmdlcyAoJHtsb2NhbF9yZXY6MDo3fSkiCiAgICBmaQpkb25lCg==' | base64 -d > /entrypoint.sh; chmod +x /entrypoint.sh\nRUN rm -rf /var/lib/mysql; install -d -o mysql -g mysql /var/lib/mysql\nEXPOSE 5005 8080\nENTRYPOINT [\"/entrypoint.sh\"]\n"
+          }
+        ]
+      }
+services:
+  edp:
+    image: ghcr.io/kiliansen/edp:latest          # <-- your edp GHCR image (set exact tag)
+    container_name: edp
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8800:8080"                     # NPM (host net) forwards here; not public
+    environment:
+      EDP_ADMIN_PASSWORD: changeme                # <-- set, then remove after first login
+      EDP_TRUST_PROXY: "1"                          # behind NPM: honor X-Forwarded-Host/Proto
+      EDP_IMPORT: /run/edp/artemis-bundle.json     # edp loads + auto-deploys this on boot
+    configs:
+      - source: artemis-bundle
+        target: /run/edp/artemis-bundle.json
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # edp controls Docker to build + run Artemis
+      - edp-data:/data
+      - edp-workspace:/workspace
+
+volumes:
+  edp-data:
+  edp-workspace:

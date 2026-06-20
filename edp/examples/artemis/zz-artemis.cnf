@@ -1,0 +1,10 @@
+# MySQL settings for the all-in-one Artemis testing image.
+# Mirrors the flags used by docker/mysql.yml. lower_case_table_names MUST be set
+# before the data directory is initialized and can never be changed afterwards.
+[mysqld]
+lower_case_table_names=1
+character_set_server=utf8mb4
+collation-server=utf8mb4_unicode_ci
+explicit_defaults_for_timestamp=1
+max_connections=10000
+bind-address=127.0.0.1

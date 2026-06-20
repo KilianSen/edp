@@ -1,0 +1,9 @@
+# edp service build / local-run artifacts
+/edp
+/edp.exe
+/.run/
+/data/
+/workspace/
+*.db
+*.db-shm
+*.db-wal

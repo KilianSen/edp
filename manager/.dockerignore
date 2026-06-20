@@ -1,0 +1,14 @@
+.git
+.gitignore
+/.run
+/data
+*.db
+*.db-shm
+*.db-wal
+secret.key
+ui/node_modules
+ui/dist
+ui/*.tsbuildinfo
+README.md
+docker-compose.yml
+config.example.yml

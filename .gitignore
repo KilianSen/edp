@@ -1,10 +1,7 @@
-/edp
-/edp.exe
+/.run/
+/.tailwind
+/_*
 *.db
 *.db-shm
 *.db-wal
-/_*
-/.tailwind
-/data
-/workspace
 .idea/

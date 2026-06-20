@@ -1,0 +1,7 @@
+services:
+  edp-splash:
+    build: .
+    image: edp-splash:latest
+    ports:
+      - "8088:80"
+    restart: unless-stopped

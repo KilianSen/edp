@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "environments": [
+    {
+      "name": "artemis-math-scaffold",
+      "source_type": "git",
+      "deploy_type": "container",
+      "repo_url": "https://github.com/REPLACE_ME/artemis-aio-image.git",
+      "git_ref": "",
+      "dockerfile_path": "Dockerfile",
+      "build_context": ".",
+      "image_name": "edp/artemis-aio:latest",
+      "restart_policy": "unless-stopped",
+      "auto_deploy": false,
+      "run_env": "ARTEMIS_REPO_URL=https://github.com/KilianSen/Artemis.git\nARTEMIS_BRANCH=feature/math/scaffold\nARTEMIS_PROFILES=artemis,scheduling,core,dev\nPULL_INTERVAL_SECONDS=3600",
+      "run_volumes": "artemis-src:/opt/artemis-src\nartemis-mysql:/var/lib/mysql",
+      "proxy_host": "artemis.test.local",
+      "proxy_port": "8080",
+      "listen_port": "5005",
+      "clear_site_data": "cookies,storage",
+      "health_type": "none"
+    }
+  ]
+}

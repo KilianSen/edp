@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>edp — environment status</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="card" role="status" aria-live="polite">
+    <div class="spinner" aria-hidden="true"></div>
+    <h1 id="title">Starting <span class="name" id="env">…</span>…</h1>
+    <p id="sub" class="sub">This environment isn’t running yet.</p>
+
+    <div class="bar"><div class="fill" id="fill"></div></div>
+    <div class="eta" id="eta"></div>
+
+    <div class="actions">
+      <button id="redeploy" type="button">Redeploy</button>
+    </div>
+    <div class="msg" id="msg"></div>
+
+    <footer class="foot"><span id="brand">edp</span> · deploying environment</footer>
+  </main>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

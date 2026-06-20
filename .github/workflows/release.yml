@@ -22,7 +22,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository }}   # owner/edp → images: edp, edp(-ui), edp-manager, edp-splash
 
 jobs:
   release:
@@ -36,20 +36,34 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: edp/go.mod
           cache: true
+          cache-dependency-path: |
+            edp/go.sum
+            manager/go.sum
 
-      - name: Build & test
+      # Both Go modules are gates — a broken build/test fails the release before
+      # any image is pushed.
+      - name: Build & test (Go)
         run: |
-          go vet ./...
-          go build ./...
-          go test ./...
+          (cd edp && go vet ./... && go build ./... && go test ./...)
+          (cd manager && go vet ./... && go build ./... && go test ./...)
 
-      # Compute the next semantic version from Conventional Commits.
-      #   fix:        -> patch   (1.2.3 -> 1.2.4)
-      #   feat:       -> minor   (1.2.3 -> 1.3.0)
-      #   feat!: / BREAKING CHANGE -> major (1.2.3 -> 2.0.0)
-      # First ever release defaults to 0.1.0.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: "**/package-lock.json"
+
+      # Build both dashboards so a broken UI fails the release here (the images
+      # rebuild them inside Docker; this is the typecheck gate).
+      - name: Build & typecheck UIs
+        run: |
+          (cd ui && npm ci && npm run build)
+          (cd manager/ui && npm ci && npm run build)
+
+      # Conventional-Commits version: fix→patch, feat→minor, feat!/BREAKING→major.
       - name: Determine version
         id: version
         uses: mathieudutour/github-tag-action@v6.2
@@ -60,14 +74,10 @@ jobs:
           tag_prefix: v
           dry_run: false
 
-      # Cross-compilation in the Dockerfile means QEMU isn't on the hot path,
-      # but keep it registered as a safety net for any emulated step.
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -75,7 +85,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker metadata
+      # ---------- edp (headless): ghcr.io/<owner>/edp ----------
+      - name: Docker metadata (edp)
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -86,16 +97,95 @@ jobs:
             type=semver,pattern={{major}},value=${{ steps.version.outputs.new_tag }}
             type=raw,value=latest
 
-      - name: Build and push image
+      - name: Build and push edp (headless)
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: edp/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=edp
+          cache-to: type=gha,mode=max,scope=edp
+          provenance: false
+
+      # ---------- edp (bundled UI): same image, -ui suffixed tags ----------
+      - name: Docker metadata (edp bundled UI)
+        id: meta-ui
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=false
+            suffix=-ui,onlatest=true
+          tags: |
+            type=raw,value=${{ steps.version.outputs.new_version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.new_tag }}
+            type=semver,pattern={{major}},value=${{ steps.version.outputs.new_tag }}
+            type=raw,value=latest
+
+      - name: Build and push edp (bundled UI)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: edp/Dockerfile.ui
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-ui.outputs.tags }}
+          labels: ${{ steps.meta-ui.outputs.labels }}
+          cache-from: type=gha,scope=edp-ui
+          cache-to: type=gha,mode=max,scope=edp-ui
+          provenance: false
+
+      # ---------- manager: ghcr.io/<owner>/edp-manager (UI always bundled) ----------
+      - name: Docker metadata (manager)
+        id: meta-manager
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-manager
+          tags: |
+            type=raw,value=${{ steps.version.outputs.new_version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.new_tag }}
+            type=semver,pattern={{major}},value=${{ steps.version.outputs.new_tag }}
+            type=raw,value=latest
+
+      - name: Build and push manager
+        uses: docker/build-push-action@v6
+        with:
+          context: ./manager
+          file: ./manager/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-manager.outputs.tags }}
+          labels: ${{ steps.meta-manager.outputs.labels }}
+          cache-from: type=gha,scope=manager
+          cache-to: type=gha,mode=max,scope=manager
+          provenance: false
+
+      # ---------- splash: ghcr.io/<owner>/edp-splash (static nginx) ----------
+      - name: Docker metadata (splash)
+        id: meta-splash
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-splash
+          tags: |
+            type=raw,value=${{ steps.version.outputs.new_version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.new_tag }}
+            type=semver,pattern={{major}},value=${{ steps.version.outputs.new_tag }}
+            type=raw,value=latest
+
+      - name: Build and push splash
+        uses: docker/build-push-action@v6
+        with:
+          context: ./splash
+          file: ./splash/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-splash.outputs.tags }}
+          labels: ${{ steps.meta-splash.outputs.labels }}
+          cache-from: type=gha,scope=splash
+          cache-to: type=gha,mode=max,scope=splash
           provenance: false
 
       - name: Create GitHub release

@@ -1,0 +1,11 @@
+services:
+  edp-ui:
+    build: .
+    image: edp-ui:latest
+    ports:
+      - "8089:80"
+    restart: unless-stopped
+    # Point the dashboard at your edp instance without rebuilding by mounting a
+    # config.js over the baked-in one:
+    # volumes:
+    #   - ./public/config.js:/usr/share/nginx/html/config.js:ro

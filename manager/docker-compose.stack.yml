@@ -1,0 +1,57 @@
+# Full demo stack: an edp instance (with the Docker socket, so deploys really
+# run) + edp-manager, self-wired by a one-shot `register` service. Run from this
+# directory (edp/manager):
+#
+#   docker compose -f docker-compose.stack.yml up -d --build
+#   open http://localhost:9090   (login: ADMIN_PASSWORD, default devpass123)
+#
+# The registrar waits for both, logs into edp to mint an API token, registers it
+# in the manager, and seeds an auto-deploying demo env — so the dashboard comes
+# up already populated and Redeploy actually pulls + runs a container.
+name: edp-stack
+
+services:
+  edp:
+    # context = monorepo root (this compose is at manager/); edp service is in edp/
+    build:
+      context: ..
+      dockerfile: edp/Dockerfile
+    environment:
+      EDP_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-devpass123}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - edp-data:/data
+      - edp-ws:/workspace
+    ports:
+      - "8080:8080" # exposed for convenience; the manager reaches it as http://edp:8080
+    restart: unless-stopped
+
+  edp-manager:
+    build: .
+    environment:
+      EDPM_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-devpass123}
+    volumes:
+      - edp-manager-data:/data
+    ports:
+      - "9090:9090"
+    depends_on:
+      - edp
+    restart: unless-stopped
+
+  # One-shot: connect edp ⇄ manager once both are up, then exit.
+  register:
+    image: alpine:3.20
+    depends_on:
+      - edp
+      - edp-manager
+    environment:
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-devpass123}
+    volumes:
+      - ./scripts/register-edp.sh:/register.sh:ro
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache curl >/dev/null && sh /register.sh"]
+    restart: "no"
+
+volumes:
+  edp-data:
+  edp-ws:
+  edp-manager-data:

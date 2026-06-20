@@ -1,0 +1,37 @@
+# Run edp itself. It controls the host's Docker daemon via the mounted socket.
+services:
+  edp:
+    # Builds the bundled-UI image. Context is the monorepo root (the service is in
+    # ./edp, the dashboard in ./ui). For headless, use `dockerfile: edp/Dockerfile`.
+    build:
+      context: ..
+      dockerfile: edp/Dockerfile.ui
+    image: edp:latest
+    container_name: edp
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      # That's the only port edp needs. HTTP reverse proxying needs no extra
+      # ports, and TCP port-forwards publish their own port via per-env sidecar
+      # containers — so nothing extra is exposed here.
+    environment:
+      # If set, this is the admin password and is (re)applied on every boot — use
+      # it to set or recover the password. If left empty, the first visit to the
+      # dashboard lets you set the password in the browser.
+      EDP_ADMIN_PASSWORD: ${EDP_ADMIN_PASSWORD:-}
+      # Set to 1 when running behind a trusted reverse proxy (e.g. Nginx Proxy
+      # Manager) so edp honors X-Forwarded-Proto/Host. Leave off if exposed directly.
+      EDP_TRUST_PROXY: ${EDP_TRUST_PROXY:-}
+      # Optionally provision environments on startup from an export bundle.
+      # Inline JSON, or mount a file and point at it (e.g. /data/seed.json). Idempotent.
+      EDP_IMPORT: ${EDP_IMPORT:-}
+    volumes:
+      # Control the host Docker daemon.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persist the SQLite DB and git checkouts / build contexts.
+      - edp-data:/data
+      - edp-workspace:/workspace
+
+volumes:
+  edp-data:
+  edp-workspace:

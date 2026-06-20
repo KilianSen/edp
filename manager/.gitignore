@@ -1,0 +1,15 @@
+/data/
+/.run/
+*.db
+*.db-shm
+*.db-wal
+secret.key
+/edp-manager
+/edp-manager.exe
+
+# UI: deps and build output (served from a dir via EDPM_UI_DIR; not embedded)
+/ui/node_modules/
+/ui/dist/
+/ui/*.tsbuildinfo
+
+.DS_Store
