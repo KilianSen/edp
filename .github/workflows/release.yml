@@ -1,0 +1,102 @@
+name: release
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Force a version bump (overrides commit-based detection)"
+        required: false
+        type: choice
+        default: ""
+        options: ["", "patch", "minor", "major"]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # create tags + releases
+  packages: write   # push to ghcr.io
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so the tagger can read prior tags/commits
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build & test
+        run: |
+          go vet ./...
+          go build ./...
+          go test ./...
+
+      # Compute the next semantic version from Conventional Commits.
+      #   fix:        -> patch   (1.2.3 -> 1.2.4)
+      #   feat:       -> minor   (1.2.3 -> 1.3.0)
+      #   feat!: / BREAKING CHANGE -> major (1.2.3 -> 2.0.0)
+      # First ever release defaults to 0.1.0.
+      - name: Determine version
+        id: version
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: ${{ github.event.inputs.release_type || 'patch' }}
+          default_prerelease_bump: false
+          tag_prefix: v
+          dry_run: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.new_version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.new_tag }}
+            type=semver,pattern={{major}},value=${{ steps.version.outputs.new_tag }}
+            type=raw,value=latest
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.new_tag }}
+          name: ${{ steps.version.outputs.new_tag }}
+          body: ${{ steps.version.outputs.changelog }}
+          generate_release_notes: false
