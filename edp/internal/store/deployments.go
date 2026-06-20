@@ -51,7 +51,7 @@ func (s *Store) ListDeployments(ctx context.Context, envID int64, limit int) ([]
 		return nil, err
 	}
 	defer rows.Close()
-	var out []*Deployment
+	out := []*Deployment{} // non-nil so an empty result marshals to [] not null
 	for rows.Next() {
 		d, err := scanDeployment(rows)
 		if err != nil {

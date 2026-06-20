@@ -63,6 +63,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T;
 }
 
+// reqList wraps request for endpoints that return a JSON array, coalescing a
+// null/undefined body to [] — Go marshals an empty slice as null, which would
+// otherwise crash callers doing .map/.length on the result.
+async function reqList<T>(method: string, path: string): Promise<T[]> {
+  const data = await request<T[] | null>(method, path);
+  return data ?? [];
+}
+
 // ---- auth ----
 export const api = {
   authStatus: () => request<{ configured: boolean }>("GET", "/api/auth"),
@@ -84,22 +92,24 @@ export const api = {
     request<{ webhook_token: string }>("POST", `/api/environments/${id}/rotate-token`),
 
   // ---- deployments ----
-  listDeployments: (id: number) => request<Deployment[]>("GET", `/api/environments/${id}/deployments`),
+  // Go marshals an empty slice as null, so list endpoints coalesce to [] to keep
+  // callers' .map/.length/.find safe even against an older backend.
+  listDeployments: (id: number) => reqList<Deployment>("GET", `/api/environments/${id}/deployments`),
   getDeployment: (id: number) => request<Deployment>("GET", `/api/deployments/${id}`),
 
   // ---- status ----
-  overview: () => request<OverviewItem[]>("GET", "/api/overview"),
-  status: () => request<StatusItem[]>("GET", "/api/status"),
+  overview: () => reqList<OverviewItem>("GET", "/api/overview"),
+  status: () => reqList<StatusItem>("GET", "/api/status"),
 
   // ---- timed hooks ----
-  listHooks: (envID: number) => request<TimedHook[]>("GET", `/api/environments/${envID}/hooks`),
+  listHooks: (envID: number) => reqList<TimedHook>("GET", `/api/environments/${envID}/hooks`),
   createHook: (envID: number, h: TimedHook) =>
     request<TimedHook>("POST", `/api/environments/${envID}/hooks`, h),
   getHook: (id: number) => request<TimedHook>("GET", `/api/hooks/${id}`),
   updateHook: (id: number, h: TimedHook) => request<TimedHook>("PUT", `/api/hooks/${id}`, h),
   deleteHook: (id: number) => request<{ status: string }>("DELETE", `/api/hooks/${id}`),
   runHook: (id: number) => request<{ run_id: number }>("POST", `/api/hooks/${id}/run`),
-  listHookRuns: (id: number) => request<HookRun[]>("GET", `/api/hooks/${id}/runs`),
+  listHookRuns: (id: number) => reqList<HookRun>("GET", `/api/hooks/${id}/runs`),
   getHookRun: (id: number) => request<HookRun>("GET", `/api/hook-runs/${id}`),
 
   // ---- import ----

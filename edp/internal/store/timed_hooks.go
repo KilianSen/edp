@@ -41,7 +41,7 @@ func (s *Store) ListAllTimedHooks(ctx context.Context) ([]*TimedHook, error) {
 }
 
 func collectHooks(rows *sql.Rows) ([]*TimedHook, error) {
-	var out []*TimedHook
+	out := []*TimedHook{} // non-nil so an empty result marshals to [] not null
 	for rows.Next() {
 		h, err := scanHook(rows)
 		if err != nil {
@@ -137,7 +137,7 @@ func (s *Store) ListHookRuns(ctx context.Context, hookID int64, limit int) ([]*H
 		return nil, err
 	}
 	defer rows.Close()
-	var out []*HookRun
+	out := []*HookRun{} // non-nil so an empty result marshals to [] not null
 	for rows.Next() {
 		r, err := scanHookRun(rows)
 		if err != nil {

@@ -46,7 +46,7 @@ func (s *Store) ListEnvironments(ctx context.Context) ([]*Environment, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []*Environment
+	out := []*Environment{} // non-nil so an empty result marshals to [] not null
 	for rows.Next() {
 		e, err := s.scanEnv(rows)
 		if err != nil {
