@@ -60,6 +60,11 @@ jobs:
           tag_prefix: v
           dry_run: false
 
+      # Cross-compilation in the Dockerfile means QEMU isn't on the hot path,
+      # but keep it registered as a safety net for any emulated step.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 

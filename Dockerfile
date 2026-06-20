@@ -1,12 +1,19 @@
 # syntax=docker/dockerfile:1
 
 # ---- build stage: static, CGO-free binary ----
-FROM golang:1.26-alpine AS build
+# Pin to BUILDPLATFORM so the compiler always runs natively on the runner;
+# cross-compile to the target arch via GOARCH instead of emulating under QEMU.
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /edp ./cmd/edp
+# TARGETOS/TARGETARCH are provided automatically by buildx per target platform.
+ARG TARGETOS TARGETARCH
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -trimpath -ldflags="-s -w" -o /edp ./cmd/edp
 
 # ---- runtime stage ----
 # We shell out to docker/compose and git, so they must be present at runtime.
