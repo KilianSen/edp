@@ -128,8 +128,9 @@ type HookRun struct {
 }
 
 const (
-	SourceGit      = "git"
-	SourceRegistry = "registry"
+	SourceGit        = "git"
+	SourceRegistry   = "registry"
+	SourceDockerfile = "dockerfile" // build from inline dockerfile_content, no repo
 
 	DeployContainer = "container"
 	DeployCompose   = "compose"

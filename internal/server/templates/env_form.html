@@ -22,6 +22,9 @@
       <button type="button" class="preset" data-preset="compose" {{if eq $e.DeployType "compose"}}data-active="1"{{end}}>
         <h3>Compose stack</h3><p>Bring up a docker-compose.yml from a repo</p>
       </button>
+      <button type="button" class="preset" data-preset="dockerfile" {{if eq $e.SourceType "dockerfile"}}data-active="1"{{end}}>
+        <h3>Inline Dockerfile</h3><p>Build from a pasted Dockerfile, no repo</p>
+      </button>
     </div>
   </div>
   {{end}}
@@ -30,6 +33,7 @@
   <select name="source_type" id="source_type" class="hidden">
     <option value="git" {{if eq $e.SourceType "git"}}selected{{end}}>git</option>
     <option value="registry" {{if eq $e.SourceType "registry"}}selected{{end}}>registry</option>
+    <option value="dockerfile" {{if eq $e.SourceType "dockerfile"}}selected{{end}}>dockerfile</option>
   </select>
   <select name="deploy_type" id="deploy_type" class="hidden">
     <option value="container" {{if eq $e.DeployType "container"}}selected{{end}}>container</option>
@@ -51,16 +55,16 @@
     </div>
   </section>
 
-  <details class="adv" data-when-source="git">
-    <summary><span>Private repo &amp; build options</span><span class="chev">&rsaquo;</span></summary>
+  <details class="adv" data-when-source="git,dockerfile">
+    <summary><span>Build options</span><span class="chev">&rsaquo;</span></summary>
     <div class="adv-body">
-      <label class="lbl">Access token <span class="text-faint">(only for private repos)</span> <input name="git_token" type="password" value="{{$e.GitToken}}" class="field"></label>
-      <div class="grid gap-4 sm:grid-cols-2" data-when-deploy="container">
+      <label class="lbl" data-when-source="git">Access token <span class="text-faint">(only for private repos)</span> <input name="git_token" type="password" value="{{$e.GitToken}}" class="field"></label>
+      <div class="grid gap-4 sm:grid-cols-2" data-when-source="git" data-when-deploy="container">
         <label class="lbl">Dockerfile path <input name="dockerfile_path" value="{{$e.DockerfilePath}}" class="field" placeholder="Dockerfile"></label>
         <label class="lbl">Build context <input name="build_context" value="{{$e.BuildContext}}" class="field" placeholder="."></label>
       </div>
-      <label class="lbl" data-when-deploy="container">Custom Dockerfile <span class="text-faint">(overrides the repo’s — leave blank to use it)</span>
-        <textarea name="dockerfile_content" rows="6" class="field font-mono text-[13px]" placeholder="FROM node:20-alpine&#10;WORKDIR /app&#10;COPY . .&#10;RUN npm ci&#10;CMD [&quot;npm&quot;,&quot;run&quot;,&quot;start:test&quot;]">{{$e.DockerfileContent}}</textarea></label>
+      <label class="lbl" data-when-deploy="container">Dockerfile <span class="text-faint">(git source: overrides the repo’s; dockerfile source: this is the build — must be self-contained, no <code>COPY</code>)</span>
+        <textarea name="dockerfile_content" rows="6" class="field font-mono text-[13px]" placeholder="FROM node:20-alpine&#10;RUN npm ci&#10;CMD [&quot;npm&quot;,&quot;run&quot;,&quot;start:test&quot;]">{{$e.DockerfileContent}}</textarea></label>
       <label class="lbl" data-when-deploy="compose">Compose file <span class="text-faint">(relative to repo)</span> <input name="compose_path" value="{{$e.ComposePath}}" class="field" placeholder="docker-compose.yml"></label>
       <label class="lbl" data-when-deploy="compose">Compose override <span class="text-faint">(merged on top of the file above)</span>
         <textarea name="compose_override" rows="6" class="field font-mono text-[13px]" placeholder="services:&#10;  app:&#10;    environment:&#10;      - APP_ENV=test&#10;    command: npm run start:test">{{$e.ComposeOverride}}</textarea></label>

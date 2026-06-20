@@ -99,6 +99,27 @@ func (e *Engine) deployContainer(ctx context.Context, lw *logWriter, env *store.
 		if err := e.dk.Run(ctx, lw, docker.RunOpts{}, "pull", image); err != nil {
 			return "", fmt.Errorf("docker pull: %w", err)
 		}
+	case store.SourceDockerfile:
+		// Build from an inline Dockerfile with no repo. The Dockerfile must be
+		// self-contained (embed any scripts via base64), since the build context
+		// is just the generated Dockerfile.
+		if image == "" {
+			image = "edp/" + sanitize(env.Name) + ":latest"
+		}
+		if strings.TrimSpace(env.DockerfileContent) == "" {
+			return "", fmt.Errorf("dockerfile source requires dockerfile_content")
+		}
+		if err := os.MkdirAll(repoDir, 0o755); err != nil {
+			return "", fmt.Errorf("create build dir: %w", err)
+		}
+		dfPath := filepath.Join(repoDir, "Dockerfile")
+		if err := os.WriteFile(dfPath, []byte(env.DockerfileContent), 0o644); err != nil {
+			return "", fmt.Errorf("write Dockerfile: %w", err)
+		}
+		lw.Printf("\n== Building %s from inline Dockerfile (%d bytes) ==\n", image, len(env.DockerfileContent))
+		if err := e.dk.Run(ctx, lw, docker.RunOpts{Dir: repoDir}, "build", "-t", image, repoDir); err != nil {
+			return "", fmt.Errorf("docker build: %w", err)
+		}
 	default: // git build
 		if image == "" {
 			image = "edp/" + sanitize(env.Name) + ":latest"

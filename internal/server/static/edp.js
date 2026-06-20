@@ -4,9 +4,10 @@
 (function () {
   // --- env form: show fieldsets relevant to the chosen source / deploy type ---
   var PRESETS = {
-    git:     { source: "git", deploy: "container" },
-    image:   { source: "registry", deploy: "container" },
-    compose: { source: "git", deploy: "compose" }
+    git:        { source: "git", deploy: "container" },
+    image:      { source: "registry", deploy: "container" },
+    compose:    { source: "git", deploy: "compose" },
+    dockerfile: { source: "dockerfile", deploy: "container" }
   };
 
   function initForm() {
